@@ -3,6 +3,47 @@ import { sqlite3Worker1Promiser } from '@sqlite.org/sqlite-wasm';
 let dbPromise: Promise<(command: string, params: any) => Promise<any>> | null = null;
 let dbId: string | null = null;
 
+async function createInitialSchema(promiser: (command: string, params: any) => Promise<any>) {
+  await promiser('exec', {
+    sql: `
+      CREATE TABLE IF NOT EXISTS todos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT NOT NULL,
+        completed BOOLEAN NOT NULL DEFAULT 0
+      )
+    `,
+    dbId,
+  });
+}
+
+async function migrateDatabase(promiser: (command: string, params: any) => Promise<any>) {
+  try {
+    const tableInfo = await promiser('exec', {
+      sql: "PRAGMA table_info(todos)",
+      rowMode: 'object',
+      dbId,
+    });
+
+    // migration check
+    const deletedColumnExists = tableInfo.result.resultRows.some(
+      (row: any) => row.name === 'deleted'
+    );
+
+    if (!deletedColumnExists) {
+      await promiser('exec', {
+        sql: "ALTER TABLE todos ADD COLUMN deleted BOOLEAN NOT NULL DEFAULT 0",
+        dbId,
+      });
+      console.log('Migration completed: Added deleted column to todos table');
+    } else {
+      console.log('Migration not needed: deleted column already exists');
+    }
+  } catch (error) {
+    console.error('Migration failed:', error);
+    throw error;
+  }
+}
+
 export async function initDb() {
   if (dbPromise) return dbPromise;
 
@@ -35,22 +76,16 @@ export async function initDb() {
 
       dbId = openResponse.result.dbId;
 
-      await promiser('exec', {
-        sql: `
-          CREATE TABLE IF NOT EXISTS todos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            text TEXT NOT NULL,
-            completed BOOLEAN NOT NULL DEFAULT 0,
-            deleted BOOLEAN NOT NULL DEFAULT 0
-          )
-        `,
-        dbId,
-      });
+      // create schema
+      await createInitialSchema(promiser);
 
-      console.log('Database initialized successfully');
+      // migration
+      await migrateDatabase(promiser);
+
+      console.log('Database initialized and migrated successfully');
       resolve(promiser);
     } catch (err) {
-      console.error('Failed to initialize database:', err);
+      console.error('Failed to initialize or migrate database:', err);
       reject(err);
     }
   });
