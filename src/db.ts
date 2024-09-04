@@ -40,7 +40,8 @@ export async function initDb() {
           CREATE TABLE IF NOT EXISTS todos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             text TEXT NOT NULL,
-            completed BOOLEAN NOT NULL DEFAULT 0
+            completed BOOLEAN NOT NULL DEFAULT 0,
+            deleted BOOLEAN NOT NULL DEFAULT 0
           )
         `,
         dbId,
@@ -74,13 +75,11 @@ export async function addTodo(text: string) {
 export async function getTodos() {
   const promiser = await initDb();
   const result = await promiser('exec', {
-    sql: 'SELECT * FROM todos ORDER BY id DESC',
+    sql: 'SELECT * FROM todos WHERE deleted = 0 ORDER BY id DESC',
     rowMode: 'object',
     dbId,
   });
   const { resultRows: rows } = result.result;
-  // console.log({result, rows})
-  
   return rows || [];
 }
 
@@ -91,4 +90,34 @@ export async function toggleTodo(id: number) {
     bind: [id],
     dbId,
   });
+}
+
+export async function updateTodo(id: number, text: string) {
+  const promiser = await initDb();
+  try {
+    await promiser('exec', {
+      sql: 'UPDATE todos SET text = ? WHERE id = ?',
+      bind: [text, id],
+      dbId,
+    });
+    console.log('Todo updated successfully');
+  } catch (error) {
+    console.error('Failed to update todo:', error);
+    throw error;
+  }
+}
+
+export async function deleteTodo(id: number) {
+  const promiser = await initDb();
+  try {
+    await promiser('exec', {
+      sql: 'UPDATE todos SET deleted = 1 WHERE id = ?',
+      bind: [id],
+      dbId,
+    });
+    console.log('Todo marked as deleted successfully');
+  } catch (error) {
+    console.error('Failed to mark todo as deleted:', error);
+    throw error;
+  }
 }

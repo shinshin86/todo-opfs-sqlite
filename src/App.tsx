@@ -49,7 +49,12 @@ export function App() {
         <VStack spacing={8}>
           <Heading>TODO App</Heading>
           <AddTodo onAdd={handleAddTodo} />
-          <TodoList todos={todos} onToggle={handleAddTodo} />
+          <TodoList 
+            todos={todos} 
+            onToggle={fetchTodos} 
+            onUpdate={fetchTodos} 
+            onDelete={fetchTodos} 
+          />
         </VStack>
       </Box>
     </ChakraProvider>
